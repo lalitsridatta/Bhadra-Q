@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bhadra Q — UPI Fraud Detection</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --card: #1a1a26;
+    --border: #2a2a3d;
+    --accent: #7c6af7;
+    --accent2: #4fc3f7;
+    --accent3: #f06292;
+    --green: #4caf82;
+    --red: #f06292;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  /* ── Header ── */
+  header {
+    text-align: center; padding: 48px 20px 32px;
+    background: radial-gradient(ellipse at 50% 0%, #1e1040 0%, transparent 70%);
+  }
+  header .logo { font-size: 2.8rem; font-weight: 800; letter-spacing: -1px;
+    background: linear-gradient(135deg, #7c6af7, #4fc3f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  header .tagline { color: var(--muted); font-size: 0.95rem; margin-top: 6px; letter-spacing: 0.5px; }
+  header .badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
+    background: #1e1040; border: 1px solid #3a2a7a; border-radius: 20px; padding: 4px 14px; font-size: 0.78rem; color: #a89cf7; }
+  header .badge span { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; animation: pulse 2s infinite; }
+
+  /* ── Layout ── */
+  .container { max-width: 900px; margin: 0 auto; padding: 0 20px 60px; }
+
+  /* ── Form Card ── */
+  .form-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; margin-bottom: 28px; }
+  .form-card h2 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .field input, .field select {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); padding: 10px 12px; font-size: 0.9rem; outline: none; transition: border 0.2s;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field select option { background: var(--surface); }
+
+  /* ── Submit ── */
+  .submit-row { margin-top: 28px; display: flex; justify-content: center; }
+  .btn-analyze {
+    background: linear-gradient(135deg, #7c6af7, #4fc3f7); border: none; border-radius: 10px;
+    color: #fff; font-size: 1rem; font-weight: 700; padding: 14px 48px; cursor: pointer;
+    letter-spacing: 0.5px; transition: opacity 0.2s, transform 0.1s;
+  }
+  .btn-analyze:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-analyze:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ── Progress ── */
+  #progress-section { display: none; margin-bottom: 28px; }
+  .progress-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; }
+  .progress-label { font-size: 0.9rem; color: var(--accent2); margin-bottom: 12px; }
+  .progress-bar-bg { background: var(--surface); border-radius: 99px; height: 8px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #7c6af7, #4fc3f7); transition: width 0.5s ease; width: 0%; }
+  .steps { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+  .step-pill { padding: 4px 12px; border-radius: 99px; font-size: 0.75rem; border: 1px solid var(--border); color: var(--muted); transition: all 0.3s; }
+  .step-pill.active { border-color: var(--accent); color: var(--accent); background: #1e1040; }
+  .step-pill.done { border-color: var(--green); color: var(--green); background: #0d2018; }
+
+  /* ── Results ── */
+  #results-section { display: none; }
+  .section-title { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+
+  /* Model score cards */
+  .model-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  @media(max-width: 640px) { .model-grid { grid-template-columns: 1fr; } }
+  .model-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; position: relative; overflow: hidden; opacity: 0; transform: translateY(16px); transition: opacity 0.4s, transform 0.4s; }
+  .model-card.visible { opacity: 1; transform: translateY(0); }
+  .model-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .model-card.classical::before { background: linear-gradient(90deg, #7c6af7, #a89cf7); }
+  .model-card.qml::before      { background: linear-gradient(90deg, #4fc3f7, #81d4fa); }
+  .model-card.rag::before      { background: linear-gradient(90deg, #f06292, #f48fb1); }
+  .model-name { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .model-score { font-size: 2.2rem; font-weight: 800; line-height: 1; }
+  .model-score .unit { font-size: 1rem; font-weight: 400; color: var(--muted); }
+  .model-conf { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+  .score-bar { height: 4px; border-radius: 99px; background: var(--border); margin-top: 12px; overflow: hidden; }
+  .score-bar-fill { height: 100%; border-radius: 99px; transition: width 0.8s ease; }
+  .classical .score-bar-fill { background: #7c6af7; }
+  .qml       .score-bar-fill { background: #4fc3f7; }
+  .rag       .score-bar-fill { background: #f06292; }
+
+  /* Final verdict */
+  .verdict-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; margin-bottom: 24px; text-align: center; opacity: 0; transform: scale(0.97); transition: opacity 0.4s, transform 0.4s; }
+  .verdict-card.visible { opacity: 1; transform: scale(1); }
+  .verdict-icon { font-size: 3rem; margin-bottom: 10px; }
+  .verdict-label { font-size: 1.6rem; font-weight: 800; margin-bottom: 6px; }
+  .verdict-label.fraud { color: var(--red); }
+  .verdict-label.legit { color: var(--green); }
+  .verdict-score { font-size: 0.95rem; color: var(--muted); }
+  .verdict-score strong { color: var(--text); }
+  .weight-row { display: flex; gap: 12px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+  .weight-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 16px; font-size: 0.8rem; }
+  .weight-chip .wname { color: var(--muted); font-size: 0.72rem; display: block; margin-bottom: 2px; }
+
+  /* RAG explanation */
+  .rag-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; margin-bottom: 24px; opacity: 0; transform: translateY(12px); transition: opacity 0.4s, transform 0.4s; }
+  .rag-card.visible { opacity: 1; transform: translateY(0); }
+  .explanation-text { font-size: 0.92rem; line-height: 1.7; color: #c8c8e0; margin-bottom: 20px; }
+  .patterns-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+  .pattern-item { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; }
+  .pattern-name { color: var(--text); }
+  .pattern-rel { font-size: 0.75rem; color: var(--accent2); }
+  .recommendation-box { background: #0d1f2d; border: 1px solid #1a3a4a; border-radius: 10px; padding: 16px 18px; }
+  .recommendation-box .rec-label { font-size: 0.72rem; color: var(--accent2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .recommendation-box p { font-size: 0.88rem; color: #b0d8f0; line-height: 1.6; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Bhadra Q</div>
+  <div class="tagline">Quantum-Enhanced UPI Fraud Detection</div>
+  <div class="badge"><span></span> Classical · Quantum · RAG · Fusion</div>
+</header>
+
+<div class="container">
+
+  <!-- ── Input Form ── -->
+  <div class="form-card">
+    <h2>Transaction Details</h2>
+    <div class="grid">
+
+      <div class="field">
+        <label>Transaction Type</label>
+        <select id="txn_type">
+          <option>P2P</option><option>P2M</option><option>Recharge</option><option>Bill Payment</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Merchant Category</label>
+        <select id="merchant_category">
+          <option>Grocery</option><option>Entertainment</option><option>Food</option>
+          <option>Fuel</option><option>Healthcare</option><option>Education</option>
+          <option>Travel</option><option>Shopping</option><option>Utilities</option><option>Gaming</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Amount (INR ₹)</label>
+        <input type="number" id="amount" placeholder="e.g. 4950" min="1" value="4950"/>
+      </div>
+
+      <div class="field">
+        <label>Transaction Status</label>
+        <select id="txn_status">
+          <option>SUCCESS</option><option>FAILED</option><option>PENDING</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Sender Age Group</label>
+        <select id="sender_age">
+          <option>18-25</option><option>26-35</option><option>36-45</option><option>46-60</option><option>60+</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Receiver Age Group</label>
+        <select id="receiver_age">
+          <option>18-25</option><option>26-35</option><option>36-45</option><option>46-60</option><option>60+</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Sender State</label>
+        <select id="sender_state">
+          <option>Delhi</option><option>Maharashtra</option><option>Karnataka</option><option>Tamil Nadu</option>
+          <option>Gujarat</option><option>Rajasthan</option><option>West Bengal</option><option>Uttar Pradesh</option>
+          <option>Telangana</option><option>Kerala</option><option>Punjab</option><option>Haryana</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Sender Bank</label>
+        <select id="sender_bank">
+          <option>SBI</option><option>HDFC</option><option>ICICI</option><option>Axis</option>
+          <option>PNB</option><option>Kotak</option><option>BOB</option><option>Canara</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Receiver Bank</label>
+        <select id="receiver_bank">
+          <option>HDFC</option><option>SBI</option><option>ICICI</option><option>Axis</option>
+          <option>PNB</option><option>Kotak</option><option>BOB</option><option>Canara</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Device Type</label>
+        <select id="device_type">
+          <option>Android</option><option>iOS</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Network Type</label>
+        <select id="network_type">
+          <option>4G</option><option>5G</option><option>3G</option><option>2G</option><option>WiFi</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Hour of Day (0–23)</label>
+        <input type="number" id="hour" min="0" max="23" value="14"/>
+      </div>
+
+      <div class="field">
+        <label>Day of Week</label>
+        <select id="day_of_week">
+          <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+          <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+        </select>
+      </div>
+
+    </div>
+
+    <div class="submit-row">
+      <button class="btn-analyze" id="analyzeBtn" onclick="runAnalysis()">Analyze Transaction</button>
+    </div>
+  </div>
+
+  <!-- ── Progress ── -->
+  <div id="progress-section">
+    <div class="progress-card">
+      <div class="progress-label" id="progress-label">Initializing...</div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <div class="steps">
+        <div class="step-pill" id="pill-preprocess">Preprocess</div>
+        <div class="step-pill" id="pill-classical">Classical ML</div>
+        <div class="step-pill" id="pill-qml">Quantum SVM</div>
+        <div class="step-pill" id="pill-rag">RAG Explainer</div>
+        <div class="step-pill" id="pill-fusion">Fusion</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Results ── -->
+  <div id="results-section">
+
+    <div class="section-title">Model Scores</div>
+    <div class="model-grid">
+      <div class="model-card classical" id="card-classical">
+        <div class="model-name">Classical (LR + XGBoost)</div>
+        <div class="model-score"><span id="classical-score">—</span><span class="unit">%</span></div>
+        <div class="model-conf">Confidence: <span id="classical-conf">—</span>%</div>
+        <div class="score-bar"><div class="score-bar-fill" id="classical-bar" style="width:0%"></div></div>
+      </div>
+      <div class="model-card qml" id="card-qml">
+        <div class="model-name">Quantum Kernel SVM</div>
+        <div class="model-score"><span id="qml-score">—</span><span class="unit">%</span></div>
+        <div class="model-conf">Confidence: <span id="qml-conf">—</span>%</div>
+        <div class="score-bar"><div class="score-bar-fill" id="qml-bar" style="width:0%"></div></div>
+      </div>
+      <div class="model-card rag" id="card-rag">
+        <div class="model-name">RAG Pattern Match</div>
+        <div class="model-score"><span id="rag-score">—</span><span class="unit">%</span></div>
+        <div class="model-conf">Confidence: <span id="rag-conf">—</span>%</div>
+        <div class="score-bar"><div class="score-bar-fill" id="rag-bar" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="verdict-card" id="verdict-card">
+      <div class="verdict-icon" id="verdict-icon">—</div>
+      <div class="verdict-label" id="verdict-label">—</div>
+      <div class="verdict-score">
+        Fraud Score: <strong id="final-score">—</strong>% &nbsp;|&nbsp; Confidence: <strong id="final-conf">—</strong>%
+      </div>
+      <div class="weight-row" id="weight-row"></div>
+    </div>
+
+    <div class="rag-card" id="rag-card">
+      <div class="section-title">Why this transaction was flagged</div>
+      <p class="explanation-text" id="explanation-text">—</p>
+      <div class="section-title">Matched Fraud Patterns</div>
+      <div class="patterns-list" id="patterns-list"></div>
+      <div class="recommendation-box">
+        <div class="rec-label">Recommendation</div>
+        <p id="recommendation-text">—</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const STEPS = ['preprocess','classical','qml','rag','fusion'];
+
+function getWeekend(day) {
+  return ['Saturday','Sunday'].includes(day) ? 1 : 0;
+}
+
+function buildTxn() {
+  const day = document.getElementById('day_of_week').value;
+  return {
+    'transaction type':    document.getElementById('txn_type').value,
+    'merchant_category':   document.getElementById('merchant_category').value,
+    'amount (INR)':        parseFloat(document.getElementById('amount').value) || 0,
+    'transaction_status':  document.getElementById('txn_status').value,
+    'sender_age_group':    document.getElementById('sender_age').value,
+    'receiver_age_group':  document.getElementById('receiver_age').value,
+    'sender_state':        document.getElementById('sender_state').value,
+    'sender_bank':         document.getElementById('sender_bank').value,
+    'receiver_bank':       document.getElementById('receiver_bank').value,
+    'device_type':         document.getElementById('device_type').value,
+    'network_type':        document.getElementById('network_type').value,
+    'hour_of_day':         parseInt(document.getElementById('hour').value) || 0,
+    'day_of_week':         day,
+    'is_weekend':          getWeekend(day)
+  };
+}
+
+function setProgress(pct, label, activeStep) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = label;
+  STEPS.forEach(s => {
+    const el = document.getElementById('pill-' + s);
+    if (!el) return;
+    if (s === activeStep) { el.className = 'step-pill active'; }
+    else if (STEPS.indexOf(s) < STEPS.indexOf(activeStep)) { el.className = 'step-pill done'; }
+    else { el.className = 'step-pill'; }
+  });
+}
+
+function showCard(id) {
+  setTimeout(() => document.getElementById(id).classList.add('visible'), 80);
+}
+
+async function runAnalysis() {
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+
+  // Reset UI
+  document.getElementById('results-section').style.display = 'none';
+  ['card-classical','card-qml','card-rag','verdict-card','rag-card'].forEach(id => {
+    document.getElementById(id).classList.remove('visible');
+  });
+  document.getElementById('progress-section').style.display = 'block';
+  STEPS.forEach(s => { const el = document.getElementById('pill-'+s); if(el) el.className='step-pill'; });
+  document.getElementById('progress-fill').style.width = '0%';
+
+  const txn = buildTxn();
+
+  const es = new EventSource('/analyze?' + new URLSearchParams({_: Date.now()}));
+
+  // POST via fetch, stream via SSE workaround — use fetch + ReadableStream
+  es.close();
+
+  const resp = await fetch('/analyze', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(txn)
+  });
+
+  document.getElementById('results-section').style.display = 'block';
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, {stream: true});
+    const parts = buf.split('\n\n');
+    buf = parts.pop();
+    for (const part of parts) {
+      const lines = part.trim().split('\n');
+      let evtName = '', evtData = '';
+      for (const l of lines) {
+        if (l.startsWith('event:')) evtName = l.slice(6).trim();
+        if (l.startsWith('data:'))  evtData = l.slice(5).trim();
+      }
+      if (!evtName || !evtData) continue;
+      const d = JSON.parse(evtData);
+      handleEvent(evtName, d);
+    }
+  }
+
+  btn.disabled = false;
+}
+
+function handleEvent(name, d) {
+  if (name === 'progress') {
+    setProgress(d.pct, d.label, d.step);
+    if (d.step === 'done') {
+      STEPS.forEach(s => { const el = document.getElementById('pill-'+s); if(el) el.className='step-pill done'; });
+    }
+  }
+
+  if (name === 'classical') {
+    document.getElementById('classical-score').textContent = d.ensemble_score;
+    document.getElementById('classical-conf').textContent  = d.confidence;
+    document.getElementById('classical-bar').style.width   = d.ensemble_score + '%';
+    showCard('card-classical');
+  }
+
+  if (name === 'qml') {
+    document.getElementById('qml-score').textContent = d.score;
+    document.getElementById('qml-conf').textContent  = d.confidence;
+    document.getElementById('qml-bar').style.width   = d.score + '%';
+    showCard('card-qml');
+  }
+
+  if (name === 'rag') {
+    document.getElementById('rag-score').textContent = d.score;
+    document.getElementById('rag-conf').textContent  = d.confidence;
+    document.getElementById('rag-bar').style.width   = d.score + '%';
+    showCard('card-rag');
+
+    document.getElementById('explanation-text').textContent = d.explanation;
+    document.getElementById('recommendation-text').textContent = d.recommendation;
+
+    const pl = document.getElementById('patterns-list');
+    pl.innerHTML = '';
+    d.patterns.forEach(p => {
+      pl.innerHTML += `<div class="pattern-item">
+        <span class="pattern-name">${p.pattern}</span>
+        <span class="pattern-rel">Relevance: ${p.relevance}%</span>
+      </div>`;
+    });
+    showCard('rag-card');
+  }
+
+  if (name === 'fusion') {
+    const isFraud = d.final_prediction === 1;
+    document.getElementById('verdict-icon').textContent  = isFraud ? '🚨' : '✅';
+    const lbl = document.getElementById('verdict-label');
+    lbl.textContent  = isFraud ? 'FRAUD DETECTED' : 'LEGITIMATE';
+    lbl.className    = 'verdict-label ' + (isFraud ? 'fraud' : 'legit');
+    document.getElementById('final-score').textContent = d.final_score;
+    document.getElementById('final-conf').textContent  = d.final_confidence;
+
+    const wr = document.getElementById('weight-row');
+    wr.innerHTML = '';
+    const colors = {XGBoost:'#7c6af7', QSVM:'#4fc3f7', RAG:'#f06292'};
+    Object.entries(d.weights).forEach(([k,v]) => {
+      wr.innerHTML += `<div class="weight-chip">
+        <span class="wname" style="color:${colors[k]||'#aaa'}">${k}</span>
+        <strong>${v}%</strong> weight
+      </div>`;
+    });
+    showCard('verdict-card');
+  }
+
+  if (name === 'error') {
+    alert('Error: ' + d.message);
+    document.getElementById('analyzeBtn').disabled = false;
+  }
+}
+</script>
+</body>
+</html>
