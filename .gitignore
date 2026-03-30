@@ -14,9 +14,9 @@ venv/
 env/
 .venv/
 
-# Trained model artifacts (large binary files)
-fraud_detection/models/*.pkl
-fraud_detection/data/*.pkl
+# Trained model artifacts — commit these for Streamlit Cloud deployment
+# fraud_detection/models/*.pkl
+# fraud_detection/data/*.pkl
 
 # Dataset (large file)
 upi_transactions_2024.csv
